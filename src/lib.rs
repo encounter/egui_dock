@@ -217,7 +217,7 @@ pub trait TabViewer {
     }
 
     /// Sets the margins between tab's borders and its contents.
-    fn inner_margin_override(&self, style: &Style) -> Margin {
+    fn inner_margin_override(&self, _tab: &Self::Tab, style: &Style) -> Margin {
         style.default_inner_margin
     }
 
@@ -670,7 +670,7 @@ impl<'tree, Tab> DockArea<'tree, Tab> {
                                 )
                                 .show(ui, |ui| {
                                     Frame::none()
-                                        .inner_margin(tab_viewer.inner_margin_override(&style))
+                                        .inner_margin(tab_viewer.inner_margin_override(tab, &style))
                                         .show(ui, |ui| {
                                             let available_rect = ui.available_rect_before_wrap();
                                             ui.expand_to_include_rect(available_rect);
@@ -679,7 +679,7 @@ impl<'tree, Tab> DockArea<'tree, Tab> {
                                 });
                         } else {
                             Frame::none()
-                                .inner_margin(tab_viewer.inner_margin_override(&style))
+                                .inner_margin(tab_viewer.inner_margin_override(tab, &style))
                                 .show(ui, |ui| {
                                     tab_viewer.ui(ui, tab);
                                 });
