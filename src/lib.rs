@@ -170,7 +170,13 @@ pub trait TabViewer {
     fn ui(&mut self, ui: &mut Ui, tab: &mut Self::Tab);
 
     /// Content inside context_menu.
-    fn context_menu(&mut self, _ui: &mut Ui, _tab: &mut Self::Tab) {}
+    fn context_menu(
+        &mut self,
+        _ui: &mut Ui,
+        _tab: &mut Self::Tab,
+        _node: NodeIndex,
+        _tab_index: TabIndex,
+    ) {}
 
     /// The title to be displayed.
     fn title(&mut self, tab: &mut Self::Tab) -> WidgetText;
@@ -275,42 +281,42 @@ impl<'tree, Tab> DockArea<'tree, Tab> {
         self.show_add_popup = show_add_popup;
         self
     }
-    
+
     /// Shows or hides the tab add buttons.
     /// By default it's false.
     pub fn show_add_buttons(mut self, show_add_buttons: bool) -> Self {
         self.show_add_buttons = show_add_buttons;
         self
     }
-    
+
     /// Shows or hides the tab close buttons.
     /// By default it's true.
     pub fn show_close_buttons(mut self, show_close_buttons: bool) -> Self {
         self.show_close_buttons = show_close_buttons;
         self
     }
-    
+
     /// Whether tabs show a context menu.
     /// By default it's true.
     pub fn tab_context_menus(mut self, tab_context_menus: bool) -> Self {
         self.tab_context_menus = tab_context_menus;
         self
     }
-    
+
     /// Whether tabs can be dragged between nodes and reordered on the tab bar.
     /// By default it's true.
     pub fn draggable_tabs(mut self, draggable_tabs: bool) -> Self {
         self.draggable_tabs = draggable_tabs;
         self
     }
-    
+
     /// Whether tabs show their name when hovered over them.
     /// By default it's false.
     pub fn show_tab_name_on_hover(mut self, show_tab_name_on_hover: bool) -> Self {
         self.show_tab_name_on_hover = show_tab_name_on_hover;
         self
     }
-    
+
     /// Whether tabs have a [`ScrollArea`] out of the box.
     /// By default it's true.
     pub fn scroll_area_in_tabs(mut self, scroll_area_in_tabs: bool) -> Self {
@@ -370,11 +376,10 @@ impl<'tree, Tab> DockArea<'tree, Tab> {
         if let Some(margin) = style.dock_area_padding {
             rect.min += margin.left_top();
             rect.max -= margin.right_bottom();
-            ui.painter().rect(
+            ui.painter().rect_stroke(
                 rect,
-                margin.top,
-                style.separator.color_idle,
-                Stroke::new(margin.top, style.border.color),
+                0.0,
+                style.border,
             );
         }
 
@@ -551,7 +556,7 @@ impl<'tree, Tab> DockArea<'tree, Tab> {
 
                                 if self.tab_context_menus {
                                     response = response.context_menu(|ui| {
-                                        tab_viewer.context_menu(ui, tab);
+                                        tab_viewer.context_menu(ui, tab, node_index, tab_index);
                                         if self.show_close_buttons && ui.button("Close").clicked() {
                                             if tab_viewer.on_close(tab) {
                                                 to_remove.push((node_index, tab_index));

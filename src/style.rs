@@ -93,6 +93,9 @@ pub struct Tabs {
     /// Colour of the tab's background. By `Default` it's [`Color32::WHITE`]
     pub bg_fill: Color32,
 
+    /// Color of the tab's background when it is unfocused. By `Default` it's [`Color32::WHITE`]
+    pub bg_fill_unfocused: Color32,
+
     /// Color of tab title when an inactive tab is unfocused.
     pub text_color_unfocused: Color32,
 
@@ -116,6 +119,15 @@ pub struct Tabs {
 
     /// Whether tab titles expand to fill the width of their tab bars.
     pub fill_tab_bar: bool,
+
+    /// Padding around the tab's title. By `Default` it's `Vec2::splat(4.0)`.
+    pub text_padding: Vec2,
+
+    /// Alignment of the tab's title. By `Default` it's [`Align2::LEFT_CENTER`].
+    pub text_align: Align2,
+
+    /// Color of the grabbed tab. By `Default` it's [`Color32::from_rgb(0, 191, 255)`] (light blue).
+    pub grabbed_color: Color32,
 }
 
 impl Default for Style {
@@ -174,6 +186,8 @@ impl Default for Tabs {
         Self {
             bg_fill: Color32::WHITE,
             fill_tab_bar: false,
+            text_padding: vec2(8.0, 5.0),
+            text_align: Align2::LEFT_CENTER,
             hline_color: Color32::BLACK,
             hline_below_active_tab_name: false,
             outline_color: Color32::BLACK,
@@ -182,6 +196,8 @@ impl Default for Tabs {
             text_color_focused: Color32::BLACK,
             text_color_active_unfocused: Color32::DARK_GRAY,
             text_color_active_focused: Color32::BLACK,
+            bg_fill_unfocused: Color32::WHITE,
+            grabbed_color: Color32::TRANSPARENT,
         }
     }
 }
@@ -426,11 +442,28 @@ impl Style {
     ) -> (Response, Option<Response>) {
         let rounding = self.tabs.rounding;
 
-        let galley = label.into_galley(ui, None, f32::INFINITY, TextStyle::Button);
+        let mut text_job = label.into_text_job(
+            ui.style(),
+            TextStyle::Button.into(),
+            ui.layout().vertical_align(),
+        );
+        let height = ui.fonts(|f| text_job.job.font_height(f));
+        let inner_width = if show_close {
+            expanded_width - height
+        } else {
+            expanded_width
+        } - self.tabs.text_padding.x * 2.0;
+        text_job.job.wrap = epaint::text::TextWrapping {
+            max_width: inner_width,
+            max_rows: 1,
+            break_anywhere: true,
+            ..Default::default()
+        };
+        let galley = ui.fonts(|f| text_job.into_galley(f));
 
         let x_size = Vec2::splat(galley.size().y / 1.3);
 
-        let offset = vec2(8.0, 0.0);
+        let offset = vec2(self.tabs.text_padding.x, 0.0);
 
         let desired_size = if self.tabs.fill_tab_bar {
             vec2(expanded_width, self.tab_bar.height)
@@ -465,15 +498,12 @@ impl Style {
                 (Rect::NOTHING, None)
             };
 
-        if active {
+        if active || focused {
+            let stroke = Stroke::new(1.0, self.tabs.outline_color);
             if is_being_dragged {
-                ui.painter().rect_stroke(
-                    rect,
-                    rounding,
-                    Stroke::new(1.0, self.tabs.outline_color),
-                );
+                ui.painter()
+                    .rect(rect, rounding, self.tabs.grabbed_color, stroke);
             } else {
-                let stroke = Stroke::new(1.0, self.tabs.outline_color);
                 ui.painter()
                     .rect(rect, rounding, self.tabs.bg_fill, stroke);
 
@@ -484,17 +514,19 @@ impl Style {
                     Stroke::new(2.0, self.tabs.bg_fill),
                 );
             }
+        } else {
+            ui.painter()
+                .rect_filled(rect, rounding, self.tabs.bg_fill_unfocused);
         }
 
-        let text_pos = if self.tabs.fill_tab_bar {
-            let mut pos = Align2::CENTER_CENTER.pos_in_rect(&rect.shrink2(vec2(8.0, 5.0)));
-            pos -= galley.size() / 2.0;
-            pos
-        } else {
-            let mut pos = Align2::LEFT_CENTER.pos_in_rect(&rect.shrink2(vec2(8.0, 5.0)));
-            pos.y -= galley.size().y / 2.0;
-            pos
-        };
+        let mut text_rect = rect.shrink2(self.tabs.text_padding);
+        if show_close {
+            text_rect.set_width(text_rect.width() - x_size.x * 2.0);
+        }
+        let text_pos = self
+            .tabs.text_align
+            .align_size_within_rect(galley.size(), text_rect)
+            .left_top();
 
         let override_text_color = if galley.galley_has_color {
             None // respect the color the user has chosen
@@ -674,7 +706,7 @@ impl StyleBuilder {
 
     /// If `true`, show the hline below the active tabs name.
     /// If `false`, show the active tab as merged with the tab ui area.
-    /// 
+    ///
     /// By `Default` it's `false`.
     #[inline(always)]
     pub fn with_hline_below_active_tab_name(mut self, hline_below_active_tab_name: bool) -> Self {
